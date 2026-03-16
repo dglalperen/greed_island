@@ -21,6 +21,7 @@ namespace GreedIsland.Input
         public Vector2 Move { get; private set; }
         public Vector2 Look { get; private set; }
         public bool SprintHeld { get; private set; }
+        public bool IsLookInputFromGamepad { get; private set; }
 
         private InputActionMap playerMap;
         private InputActionMap debugMap;
@@ -68,6 +69,7 @@ namespace GreedIsland.Input
             Move = Vector2.zero;
             Look = Vector2.zero;
             SprintHeld = false;
+            IsLookInputFromGamepad = false;
             callbacksRegistered = false;
         }
 
@@ -283,8 +285,17 @@ namespace GreedIsland.Input
         private void OnMovePerformed(InputAction.CallbackContext context) => Move = context.ReadValue<Vector2>();
         private void OnMoveCanceled(InputAction.CallbackContext context) => Move = Vector2.zero;
 
-        private void OnLookPerformed(InputAction.CallbackContext context) => Look = context.ReadValue<Vector2>();
-        private void OnLookCanceled(InputAction.CallbackContext context) => Look = Vector2.zero;
+        private void OnLookPerformed(InputAction.CallbackContext context)
+        {
+            Look = context.ReadValue<Vector2>();
+            IsLookInputFromGamepad = context.control?.device is Gamepad;
+        }
+
+        private void OnLookCanceled(InputAction.CallbackContext context)
+        {
+            Look = Vector2.zero;
+            IsLookInputFromGamepad = false;
+        }
 
         private void OnSprintPerformed(InputAction.CallbackContext context) => SprintHeld = context.ReadValueAsButton();
         private void OnSprintCanceled(InputAction.CallbackContext context) => SprintHeld = false;
@@ -362,7 +373,7 @@ namespace GreedIsland.Input
         private static void AddDebugActions(InputActionMap map)
         {
             var toggleDebug = map.AddAction("ToggleDebug", InputActionType.Button);
-            toggleDebug.AddBinding("<Keyboard>/f1");
+            toggleDebug.AddBinding("<Keyboard>/backquote");
             toggleDebug.AddBinding("<Gamepad>/select");
         }
     }

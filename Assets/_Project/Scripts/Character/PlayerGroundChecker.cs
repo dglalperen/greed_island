@@ -8,6 +8,7 @@ namespace GreedIsland.Character
         [SerializeField] private CharacterController characterController;
         [SerializeField, Min(0.01f)] private float castRadius = 0.28f;
         [SerializeField, Min(0.05f)] private float castDistance = 0.35f;
+        [SerializeField, Min(0f)] private float walkableSlopeBuffer = 2f;
         [SerializeField] private LayerMask groundMask = ~0;
 
         public bool IsGrounded { get; private set; }
@@ -46,9 +47,10 @@ namespace GreedIsland.Character
 
             if (Physics.SphereCast(origin, castRadius, Vector3.down, out var hit, castDistance, groundMask, QueryTriggerInteraction.Ignore))
             {
-                IsGrounded = true;
-                GroundNormal = hit.normal;
                 SlopeAngle = Vector3.Angle(Vector3.up, hit.normal);
+                var isWalkable = SlopeAngle <= characterController.slopeLimit + walkableSlopeBuffer;
+                IsGrounded = isWalkable;
+                GroundNormal = isWalkable ? hit.normal : Vector3.up;
                 return;
             }
 

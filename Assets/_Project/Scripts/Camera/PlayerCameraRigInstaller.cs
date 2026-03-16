@@ -88,22 +88,30 @@ namespace GreedIsland.Camera
             };
             cmCamera.Priority = 100;
 
+            var fallbackControllers = mainCamera.GetComponents<ThirdPersonCameraController>();
+            for (var i = 0; i < fallbackControllers.Length; i++)
+            {
+                fallbackControllers[i].enabled = false;
+            }
+
             var orbitalFollow = cinemachineRig.GetComponent<CinemachineOrbitalFollow>();
             if (orbitalFollow == null)
             {
                 orbitalFollow = cinemachineRig.AddComponent<CinemachineOrbitalFollow>();
             }
-            orbitalFollow.Radius = 4.8f;
-            orbitalFollow.TargetOffset = new Vector3(0.2f, 1.2f, 0f);
-            orbitalFollow.VerticalAxis.Range = new Vector2(-30f, 70f);
-            orbitalFollow.VerticalAxis.Center = 15f;
+            orbitalFollow.Radius = 5.15f;
+            orbitalFollow.TargetOffset = new Vector3(0.55f, 1.35f, 0f);
+            orbitalFollow.VerticalAxis.Range = new Vector2(-25f, 68f);
+            orbitalFollow.VerticalAxis.Center = 18f;
+            orbitalFollow.HorizontalAxis.Value = targetProvider.transform.eulerAngles.y;
+            orbitalFollow.VerticalAxis.Value = 18f;
 
             var rotationComposer = cinemachineRig.GetComponent<CinemachineRotationComposer>();
             if (rotationComposer == null)
             {
                 rotationComposer = cinemachineRig.AddComponent<CinemachineRotationComposer>();
             }
-            rotationComposer.Damping = new Vector2(0.2f, 0.25f);
+            rotationComposer.Damping = new Vector2(0.1f, 0.12f);
 
             var inputBridge = cinemachineRig.GetComponent<CinemachineOrbitBridge>();
             if (inputBridge == null)
@@ -143,8 +151,13 @@ namespace GreedIsland.Camera
         {
             [SerializeField] private PlayerInputReader inputReader;
             [SerializeField] private CinemachineOrbitalFollow orbitalFollow;
-            [SerializeField, Min(0f)] private float yawSpeed = 115f;
-            [SerializeField, Min(0f)] private float pitchSpeed = 95f;
+            [SerializeField, Min(0f)] private float mouseYawSensitivity = 0.12f;
+            [SerializeField, Min(0f)] private float mousePitchSensitivity = 0.1f;
+            [SerializeField, Min(0f)] private float gamepadYawSpeed = 150f;
+            [SerializeField, Min(0f)] private float gamepadPitchSpeed = 130f;
+            [SerializeField, Min(0f)] private float lookSmoothing = 18f;
+
+            private Vector2 smoothedLook;
 
             private void LateUpdate()
             {
@@ -154,14 +167,25 @@ namespace GreedIsland.Camera
                 }
 
                 var look = inputReader.Look;
-                if (look.sqrMagnitude <= 0.000001f)
+                var deltaTime = Mathf.Max(Time.deltaTime, 0.0001f);
+                var smoothing = 1f - Mathf.Exp(-lookSmoothing * deltaTime);
+                smoothedLook = Vector2.Lerp(smoothedLook, look, smoothing);
+
+                if (smoothedLook.sqrMagnitude <= 0.000001f)
                 {
                     return;
                 }
 
-                var deltaTime = Mathf.Max(Time.deltaTime, 0.0001f);
-                orbitalFollow.HorizontalAxis.Value += look.x * yawSpeed * deltaTime;
-                orbitalFollow.VerticalAxis.Value -= look.y * pitchSpeed * deltaTime;
+                if (inputReader.IsLookInputFromGamepad)
+                {
+                    orbitalFollow.HorizontalAxis.Value += smoothedLook.x * gamepadYawSpeed * deltaTime;
+                    orbitalFollow.VerticalAxis.Value -= smoothedLook.y * gamepadPitchSpeed * deltaTime;
+                }
+                else
+                {
+                    orbitalFollow.HorizontalAxis.Value += smoothedLook.x * mouseYawSensitivity;
+                    orbitalFollow.VerticalAxis.Value -= smoothedLook.y * mousePitchSensitivity;
+                }
 
                 var verticalRange = orbitalFollow.VerticalAxis.Range;
                 orbitalFollow.VerticalAxis.Value = Mathf.Clamp(orbitalFollow.VerticalAxis.Value, verticalRange.x, verticalRange.y);

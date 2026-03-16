@@ -1,3 +1,4 @@
+using GreedIsland.Core;
 using UnityEngine;
 
 namespace GreedIsland.Character
@@ -23,9 +24,9 @@ namespace GreedIsland.Character
             if (isGrounded)
             {
                 lastGroundedAt = Time.time;
-                if (verticalVelocity < -1f)
+                if (verticalVelocity < -2f)
                 {
-                    verticalVelocity = -1f;
+                    verticalVelocity = -2f;
                 }
             }
 
@@ -39,6 +40,11 @@ namespace GreedIsland.Character
             }
 
             verticalVelocity += gravity * Time.deltaTime;
+            if (verticalVelocity < GameConstants.TerminalVelocity)
+            {
+                verticalVelocity = GameConstants.TerminalVelocity;
+            }
+
             return verticalVelocity;
         }
 

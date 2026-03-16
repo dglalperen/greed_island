@@ -1,4 +1,6 @@
 using System;
+using GreedIsland.Abilities;
+using GreedIsland.Core;
 using GreedIsland.Stats;
 using UnityEngine;
 
@@ -9,6 +11,11 @@ namespace GreedIsland.Aura
         [SerializeField] private AuraPool auraPool;
         [SerializeField] private AffinityProfile affinityProfile;
         [SerializeField] private AuraSignatureProfile signatureProfile;
+        [Header("Perception Pulse")]
+        [SerializeField, Min(0f)] private float perceptionPulseRadius = 14f;
+        [SerializeField, Min(0.1f)] private float perceptionPulseInterval = 1.2f;
+        [SerializeField, Min(0f)] private float perceptionRevealDuration = 1.1f;
+        [SerializeField] private LayerMask perceptionTargetMask = ~0;
         [SerializeField] private AuraModeRuntimeConfig[] modeConfigs =
         {
             AuraModeRuntimeConfig.Create(AuraMode.Neutral, 1f, 0f, 1f, 1f, 1f),
@@ -20,6 +27,7 @@ namespace GreedIsland.Aura
 
         private readonly AuraStateMachine stateMachine = new();
         private AuraModeRuntimeConfig activeConfig;
+        private float nextPerceptionPulseAt;
 
         public event Action<AuraMode> ModeChanged;
 
@@ -32,6 +40,8 @@ namespace GreedIsland.Aura
         public float OutgoingPowerMultiplier => activeConfig.OutgoingPowerMultiplier;
         public float MovementMultiplier => activeConfig.MovementMultiplier;
         public float DetectionMultiplier => activeConfig.DetectionMultiplier;
+        public float RegenMultiplier => activeConfig.RegenMultiplier;
+        public float UpkeepPerSecond => activeConfig.UpkeepPerSecond;
 
         private void Awake()
         {
@@ -52,15 +62,16 @@ namespace GreedIsland.Aura
             }
 
             var upkeep = activeConfig.UpkeepPerSecond * Time.deltaTime;
-            if (upkeep <= 0f)
+            if (upkeep > 0f)
             {
-                return;
+                if (!auraPool.Spend(upkeep))
+                {
+                    SetMode(AuraMode.Neutral);
+                    return;
+                }
             }
 
-            if (!auraPool.Spend(upkeep))
-            {
-                SetMode(AuraMode.Neutral);
-            }
+            TickPerceptionPulse();
         }
 
         public bool SetMode(AuraMode mode)
@@ -127,6 +138,47 @@ namespace GreedIsland.Aura
             }
 
             return AuraModeRuntimeConfig.Create(AuraMode.Neutral, 1f, 0f, 1f, 1f, 1f);
+        }
+
+        private void TickPerceptionPulse()
+        {
+            if (CurrentMode != AuraMode.Perception)
+            {
+                return;
+            }
+
+            if (Time.time < nextPerceptionPulseAt)
+            {
+                return;
+            }
+
+            nextPerceptionPulseAt = Time.time + perceptionPulseInterval;
+
+            var mask = perceptionTargetMask;
+            if (mask == ~0)
+            {
+                mask = LayerMask.GetMask("Enemy", "Target", "Default");
+            }
+
+            var colliders = Physics.OverlapSphere(transform.position, perceptionPulseRadius, mask, QueryTriggerInteraction.Collide);
+            for (var i = 0; i < colliders.Length; i++)
+            {
+                var targetable = colliders[i].GetComponentInParent<ITargetable>();
+                if (targetable == null || !targetable.IsTargetable)
+                {
+                    continue;
+                }
+
+                var reveal = targetable.TargetTransform.GetComponent<SenseRevealTarget>();
+                if (reveal == null)
+                {
+                    reveal = targetable.TargetTransform.gameObject.AddComponent<SenseRevealTarget>();
+                }
+
+                reveal.Reveal(perceptionRevealDuration);
+            }
+
+            Debug.DrawRay(transform.position, Vector3.up * 2f, Color.white, 0.2f);
         }
 
         private void ApplyConfigToPool(AuraModeRuntimeConfig modeConfig)

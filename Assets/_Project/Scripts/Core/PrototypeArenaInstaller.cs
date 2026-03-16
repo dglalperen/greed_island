@@ -109,6 +109,7 @@ namespace GreedIsland.Core
             CreateHudIfMissing(playerRefs);
             CreateEventSystemIfMissing();
             PlaceCameraNearPlayer(playerRefs.PlayerRoot);
+            EnsureCameraGameplaySettings();
 
             if (dummy != null)
             {
@@ -159,6 +160,7 @@ namespace GreedIsland.Core
             var existingBrain = FindAnyObjectByType<PlayerBrain>();
             if (existingBrain != null)
             {
+                EnsurePlayerPresentation(existingBrain.gameObject);
                 return new PlayerRuntimeRefs(existingBrain.gameObject);
             }
 
@@ -205,6 +207,8 @@ namespace GreedIsland.Core
             player.AddComponent<PrototypeAbilityLoadout>();
             player.AddComponent<PlayerCameraRigInstaller>();
             var inputRouter = player.AddComponent<InputActionRouter>();
+            player.AddComponent<PrototypeLimbAnimator>();
+            player.AddComponent<AuraVisualController>();
 
             // Force references that are otherwise optional-at-runtime so startup is deterministic.
             health.Heal(GameConstants.DefaultHealthMax);
@@ -215,6 +219,7 @@ namespace GreedIsland.Core
             _ = abilityRunner.enabled;
             _ = targetProvider.CameraRoot;
 
+            EnsurePlayerPresentation(player);
             return new PlayerRuntimeRefs(player);
         }
 
@@ -299,13 +304,13 @@ namespace GreedIsland.Core
 
             var leftPanel = CreatePanel(canvas.transform, "TopLeftPanel", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(20f, -20f), new Vector2(420f, 230f));
             var health = CreateLabeledSlider(leftPanel.transform, "Health", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(10f, -20f), new Color(0.87f, 0.16f, 0.16f, 1f));
-            var aura = CreateLabeledSlider(leftPanel.transform, "Aura", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(10f, -70f), new Color(0.2f, 0.75f, 1f, 1f));
+            var aura = CreateLabeledSlider(leftPanel.transform, "Aura", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(10f, -70f), new Color(0.95f, 0.95f, 0.95f, 1f));
 
             var modeText = CreateText(leftPanel.transform, "AuraMode", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(12f, -116f), new Vector2(260f, 28f), 18, TextAnchor.MiddleLeft);
             modeText.text = "Mode: Neutral";
 
             var statusText = CreateText(leftPanel.transform, "AbilityStatus", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(12f, -148f), new Vector2(400f, 50f), 14, TextAnchor.UpperLeft);
-            statusText.text = "Ability ready.";
+            statusText.text = "1 Burst | 2 Guard toggle | 3 Sense Pulse";
 
             var cooldownContainer = CreatePanel(canvas.transform, "CooldownPanel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-180f, 24f), new Vector2(360f, 110f));
             var cooldownViews = new List<CooldownBarView>(3);
@@ -319,7 +324,28 @@ namespace GreedIsland.Core
                 cooldownViews.Add(cooldownView);
             }
 
-            var debugRoot = CreatePanel(canvas.transform, "DebugPanel", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-20f, -20f), new Vector2(360f, 250f));
+            var controlsPanel = CreatePanel(canvas.transform, "ControlsPanel", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-20f, -20f), new Vector2(430f, 290f));
+            var controlsText = CreateInstructionText(controlsPanel.transform, "ControlsText", 14);
+            controlsText.text =
+                "Controls (F1 hide/show)\n" +
+                "------------------------\n" +
+                "WASD / Left Stick: Move\n" +
+                "Mouse / Right Stick: Look\n" +
+                "Space: Jump\n" +
+                "Left Shift: Sprint\n" +
+                "Left Ctrl: Dash\n" +
+                "1: Aura Burst (offense)\n" +
+                "2: Aura Guard (toggle defense)\n" +
+                "3: Sense Pulse (utility)\n" +
+                "Q: Cycle Aura Mode (Perception auto-pulses)\n" +
+                "Tab: Lock target\n" +
+                "Backquote (`): Toggle debug panel\n" +
+                "Esc: Unlock cursor, LMB: lock cursor again";
+
+            var instructionsPanel = canvasObject.AddComponent<QuickInstructionsPanel>();
+            instructionsPanel.Configure(controlsPanel, true);
+
+            var debugRoot = CreatePanel(canvas.transform, "DebugPanel", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-20f, 20f), new Vector2(360f, 250f));
             var debugText = CreateText(debugRoot.transform, "DebugText", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(10f, -10f), new Vector2(-20f, -220f), 14, TextAnchor.UpperLeft);
 
             var crosshair = CreateText(canvas.transform, "Crosshair", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-10f, -10f), new Vector2(20f, 20f), 20, TextAnchor.MiddleCenter);
@@ -395,6 +421,39 @@ namespace GreedIsland.Core
             {
                 mainCamera.transform.position = player.transform.position + new Vector3(0f, 2.2f, -4.8f);
             }
+        }
+
+        private static void EnsureCameraGameplaySettings()
+        {
+            var mainCamera = UnityEngine.Camera.main;
+            if (mainCamera == null)
+            {
+                return;
+            }
+
+            if (mainCamera.GetComponent<GameplayCursorLock>() == null)
+            {
+                mainCamera.gameObject.AddComponent<GameplayCursorLock>();
+            }
+        }
+
+        private static void EnsurePlayerPresentation(GameObject player)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            if (player.GetComponent<PrototypeLimbAnimator>() == null)
+            {
+                player.AddComponent<PrototypeLimbAnimator>();
+            }
+
+            if (player.GetComponent<AuraVisualController>() == null)
+            {
+                player.AddComponent<AuraVisualController>();
+            }
+
         }
 
         private static GameObject CreatePanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 anchoredPosition, Vector2 sizeDelta)
@@ -512,6 +571,34 @@ namespace GreedIsland.Core
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Truncate;
 
+            return text;
+        }
+
+        private static Text CreateInstructionText(Transform parent, string name, int fontSize)
+        {
+            var textObject = new GameObject(name, typeof(RectTransform), typeof(Text));
+            textObject.transform.SetParent(parent, false);
+
+            var rect = textObject.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = new Vector2(12f, 10f);
+            rect.offsetMax = new Vector2(-12f, -10f);
+
+            var text = textObject.GetComponent<Text>();
+            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font == null)
+            {
+                font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            }
+
+            text.font = font;
+            text.fontSize = fontSize;
+            text.alignment = TextAnchor.UpperLeft;
+            text.color = Color.white;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Overflow;
             return text;
         }
 

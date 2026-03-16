@@ -115,6 +115,7 @@ namespace GreedIsland.Character
             }
 
             groundChecker.Tick();
+            var wasGrounded = groundChecker.IsGrounded;
 
             var cameraRelative = ResolveCameraRelativeMove(moveInput);
             var inputMagnitude = Mathf.Clamp01(moveInput.magnitude);
@@ -125,7 +126,7 @@ namespace GreedIsland.Character
             var sprintSpeed = stats.SprintSpeed * auraMovementMultiplier;
 
             var forwardAlignment = Vector3.Dot(moveDirection, ResolveCameraForward());
-            var canSprint = sprintHeld && inputMagnitude > 0.15f && forwardAlignment > 0.25f && groundChecker.IsGrounded;
+            var canSprint = sprintHeld && inputMagnitude > 0.15f && forwardAlignment > 0.25f && wasGrounded;
             var targetSpeed = canSprint ? sprintSpeed : moveSpeed;
 
             if (dashRequested)
@@ -141,13 +142,13 @@ namespace GreedIsland.Character
                 jumpRequested = false;
             }
 
-            var verticalVelocity = jumpController.Tick(groundChecker.IsGrounded, stats.Gravity, stats.JumpHeight, !dashController.IsDashing);
+            var verticalVelocity = jumpController.Tick(wasGrounded, stats.Gravity, stats.JumpHeight, !dashController.IsDashing);
             var dashVelocity = dashController.GetDashVelocity();
 
             motor.TickMotor(
                 moveDirection,
                 groundChecker.GroundNormal,
-                groundChecker.IsGrounded,
+                wasGrounded,
                 targetSpeed * inputMagnitude,
                 stats.Acceleration,
                 stats.Deceleration,
@@ -155,15 +156,27 @@ namespace GreedIsland.Character
                 verticalVelocity,
                 dashVelocity);
 
+            if (motor.IsTouchingCeiling && jumpController.VerticalVelocity > 0f)
+            {
+                jumpController.ForceVerticalVelocity(-1f);
+            }
+
+            groundChecker.Tick();
+
             var isSprinting = canSprint && !dashController.IsDashing;
-            movementStateMachine.Tick(groundChecker.IsGrounded, isSprinting, dashController.IsDashing, motor.HorizontalSpeed, verticalVelocity);
+            movementStateMachine.Tick(groundChecker.IsGrounded, isSprinting, dashController.IsDashing, motor.HorizontalSpeed, jumpController.VerticalVelocity);
 
             var rotationTarget = lockOnTarget != null && lockOnTarget.IsTargetable
                 ? lockOnTarget.TargetTransform.position - transform.position
                 : moveDirection;
 
             rotationController.Tick(rotationTarget, !dashController.IsDashing);
-            animatorController?.Tick(movementStateMachine.CurrentState, motor.HorizontalSpeed, groundChecker.IsGrounded, verticalVelocity, isSprinting);
+            animatorController?.Tick(
+                movementStateMachine.CurrentState,
+                motor.HorizontalSpeed,
+                groundChecker.IsGrounded,
+                jumpController.VerticalVelocity,
+                isSprinting);
         }
 
         public void SetMoveIntent(Vector2 move, Vector2 look, bool sprint)

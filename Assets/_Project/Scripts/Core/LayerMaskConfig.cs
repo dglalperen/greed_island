@@ -18,14 +18,31 @@ namespace GreedIsland.Core
         {
             get
             {
-                var ground = LayerMask.NameToLayer("Ground");
-                if (ground < 0)
+                var mask = BuildMask("Ground", "WorldProp", "Interactable", "Default");
+                if (mask == 0)
                 {
                     return LayerMask.GetMask("Default");
                 }
 
-                return 1 << ground;
+                return mask;
             }
+        }
+
+        private static int BuildMask(params string[] layerNames)
+        {
+            var mask = 0;
+            for (var i = 0; i < layerNames.Length; i++)
+            {
+                var layer = LayerMask.NameToLayer(layerNames[i]);
+                if (layer < 0)
+                {
+                    continue;
+                }
+
+                mask |= 1 << layer;
+            }
+
+            return mask;
         }
     }
 }

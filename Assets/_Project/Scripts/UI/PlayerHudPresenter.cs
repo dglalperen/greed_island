@@ -68,6 +68,7 @@ namespace GreedIsland.UI
             {
                 abilityRunner.AbilityExecuted += OnAbilityExecuted;
                 abilityRunner.AbilityFailed += OnAbilityFailed;
+                abilityRunner.AbilityStopped += OnAbilityStopped;
             }
 
             if (debugPanel != null)
@@ -98,6 +99,7 @@ namespace GreedIsland.UI
             {
                 abilityRunner.AbilityExecuted -= OnAbilityExecuted;
                 abilityRunner.AbilityFailed -= OnAbilityFailed;
+                abilityRunner.AbilityStopped -= OnAbilityStopped;
             }
         }
 
@@ -134,7 +136,13 @@ namespace GreedIsland.UI
         {
             if (auraModeText != null)
             {
-                auraModeText.text = $"Mode: {mode}";
+                auraModeText.text = $"Mode: {mode} ({DescribeMode(mode)})";
+            }
+
+            if (abilityStatusText != null && auraController != null)
+            {
+                abilityStatusText.text =
+                    $"Aura {mode}: regen x{auraController.RegenMultiplier:0.00}, upkeep {auraController.UpkeepPerSecond:0.0}/s";
             }
         }
 
@@ -153,6 +161,28 @@ namespace GreedIsland.UI
                 var abilityName = definition != null ? definition.DisplayName : "None";
                 abilityStatusText.text = $"Slot {slotId} ({abilityName}) failed: {reason}";
             }
+        }
+
+        private void OnAbilityStopped(int slotId, AbilityDefinition definition)
+        {
+            if (abilityStatusText == null || definition == null)
+            {
+                return;
+            }
+
+            abilityStatusText.text = $"Slot {slotId}: {definition.DisplayName} ended";
+        }
+
+        private static string DescribeMode(AuraMode mode)
+        {
+            return mode switch
+            {
+                AuraMode.Concealment => "quiet flow",
+                AuraMode.Reinforcement => "guard focus",
+                AuraMode.Expansion => "power output",
+                AuraMode.Perception => "sense focus",
+                _ => "balanced"
+            };
         }
 
         public void ConfigureViews(
