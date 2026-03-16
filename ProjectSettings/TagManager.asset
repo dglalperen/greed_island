@@ -3,22 +3,28 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags: []
+  tags:
+  - Player
+  - Enemy
+  - Hitbox
+  - Hurtbox
+  - Ability
+  - Interactable
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Player
   - Water
   - UI
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  - Ability
+  - Hitbox
+  - Hurtbox
+  - Enemy
+  - Interactable
+  - WorldProp
+  - Ground
+  - Target
   - 
   - 
   - 
