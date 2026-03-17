@@ -307,10 +307,10 @@ namespace GreedIsland.Core
             var aura = CreateLabeledSlider(leftPanel.transform, "Aura", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(10f, -70f), new Color(0.95f, 0.95f, 0.95f, 1f));
 
             var modeText = CreateText(leftPanel.transform, "AuraMode", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(12f, -116f), new Vector2(260f, 28f), 18, TextAnchor.MiddleLeft);
-            modeText.text = "Mode: Neutral";
+            modeText.text = "Nen: Ten";
 
             var statusText = CreateText(leftPanel.transform, "AbilityStatus", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(12f, -148f), new Vector2(400f, 50f), 14, TextAnchor.UpperLeft);
-            statusText.text = "1 Burst | 2 Guard toggle | 3 Sense Pulse";
+            statusText.text = "Nen flow stable.";
 
             var cooldownContainer = CreatePanel(canvas.transform, "CooldownPanel", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-180f, 24f), new Vector2(360f, 110f));
             var cooldownViews = new List<CooldownBarView>(3);
@@ -337,7 +337,8 @@ namespace GreedIsland.Core
                 "1: Aura Burst (offense)\n" +
                 "2: Aura Guard (toggle defense)\n" +
                 "3: Sense Pulse (utility)\n" +
-                "Q: Cycle Aura Mode (Perception auto-pulses)\n" +
+                "Q: Cycle Nen technique\n" +
+                "Ten > Zetsu > Ren > Gyo > En > In > Shu > Ko > Ken > Ryu\n" +
                 "Tab: Lock target\n" +
                 "Backquote (`): Toggle debug panel\n" +
                 "Esc: Unlock cursor, LMB: lock cursor again";

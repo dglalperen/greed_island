@@ -61,7 +61,9 @@ namespace GreedIsland.UI
             if (auraController != null)
             {
                 auraController.ModeChanged += OnAuraModeChanged;
+                auraController.TechniqueChanged += OnTechniqueChanged;
                 OnAuraModeChanged(auraController.CurrentMode);
+                OnTechniqueChanged(auraController.CurrentTechnique);
             }
 
             if (abilityRunner != null)
@@ -93,6 +95,7 @@ namespace GreedIsland.UI
             if (auraController != null)
             {
                 auraController.ModeChanged -= OnAuraModeChanged;
+                auraController.TechniqueChanged -= OnTechniqueChanged;
             }
 
             if (abilityRunner != null)
@@ -134,15 +137,33 @@ namespace GreedIsland.UI
 
         private void OnAuraModeChanged(AuraMode mode)
         {
+            RefreshAuraStateText();
+        }
+
+        private void OnTechniqueChanged(NenTechnique technique)
+        {
+            RefreshAuraStateText();
+        }
+
+        private void RefreshAuraStateText()
+        {
+            if (auraController == null)
+            {
+                return;
+            }
+
+            var mode = auraController.CurrentMode;
+            var technique = auraController.CurrentTechnique;
             if (auraModeText != null)
             {
-                auraModeText.text = $"Mode: {mode} ({DescribeMode(mode)})";
+                auraModeText.text = $"Nen: {technique} ({DescribeTechnique(technique)})";
             }
 
             if (abilityStatusText != null && auraController != null)
             {
                 abilityStatusText.text =
-                    $"Aura {mode}: regen x{auraController.RegenMultiplier:0.00}, upkeep {auraController.UpkeepPerSecond:0.0}/s";
+                    $"{mode} | regen x{auraController.RegenMultiplier:0.00}, upkeep {auraController.UpkeepPerSecond:0.0}/s" +
+                    $"{(auraController.CanUseAbilities ? string.Empty : " | abilities disabled")}";
             }
         }
 
@@ -173,15 +194,20 @@ namespace GreedIsland.UI
             abilityStatusText.text = $"Slot {slotId}: {definition.DisplayName} ended";
         }
 
-        private static string DescribeMode(AuraMode mode)
+        private static string DescribeTechnique(NenTechnique technique)
         {
-            return mode switch
+            return technique switch
             {
-                AuraMode.Concealment => "quiet flow",
-                AuraMode.Reinforcement => "guard focus",
-                AuraMode.Expansion => "power output",
-                AuraMode.Perception => "sense focus",
-                _ => "balanced"
+                NenTechnique.Zetsu => "suppressed aura",
+                NenTechnique.Ren => "amplified output",
+                NenTechnique.Gyo => "focused aura",
+                NenTechnique.En => "expanded detection",
+                NenTechnique.In => "hidden aura",
+                NenTechnique.Shu => "aura-infused objects",
+                NenTechnique.Ko => "all-in strike",
+                NenTechnique.Ken => "sustained guard",
+                NenTechnique.Ryu => "dynamic distribution",
+                _ => "baseline shroud"
             };
         }
 

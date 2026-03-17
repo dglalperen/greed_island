@@ -8,15 +8,6 @@ namespace GreedIsland.Input
 {
     public sealed class InputActionRouter : MonoBehaviour
     {
-        private static readonly AuraMode[] AuraModeCycle =
-        {
-            AuraMode.Neutral,
-            AuraMode.Concealment,
-            AuraMode.Reinforcement,
-            AuraMode.Expansion,
-            AuraMode.Perception
-        };
-
         [SerializeField] private PlayerInputReader inputReader;
         [SerializeField] private PlayerBrain playerBrain;
         [SerializeField] private AbilityRunner abilityRunner;
@@ -116,26 +107,7 @@ namespace GreedIsland.Input
 
         private void OnToggleFocusPressed()
         {
-            if (auraController == null)
-            {
-                return;
-            }
-
-            var current = auraController.CurrentMode;
-            var index = 0;
-            for (var i = 0; i < AuraModeCycle.Length; i++)
-            {
-                if (AuraModeCycle[i] != current)
-                {
-                    continue;
-                }
-
-                index = i;
-                break;
-            }
-
-            var nextIndex = (index + 1) % AuraModeCycle.Length;
-            auraController.SetMode(AuraModeCycle[nextIndex]);
+            auraController?.CycleTechnique();
         }
 
         private void OnLockOnPressed()

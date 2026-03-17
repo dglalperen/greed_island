@@ -18,7 +18,7 @@ namespace GreedIsland.Core
         public const float DefaultDashDuration = 0.2f;
         public const float DefaultDashCooldown = 0.6f;
 
-        public const float DefaultAuraMax = 100f;
+        public const float DefaultAuraMax = 200f;
         public const float DefaultAuraRegen = 12f;
         public const float DefaultAuraRegenDelay = 1.1f;
 

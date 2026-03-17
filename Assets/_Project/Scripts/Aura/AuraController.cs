@@ -6,32 +6,82 @@ using UnityEngine;
 
 namespace GreedIsland.Aura
 {
+    public enum NenTechnique
+    {
+        Ten = 0,
+        Zetsu = 1,
+        Ren = 2,
+        Gyo = 3,
+        En = 4,
+        In = 5,
+        Shu = 6,
+        Ko = 7,
+        Ken = 8,
+        Ryu = 9
+    }
+
     public sealed class AuraController : MonoBehaviour
     {
+        private static readonly NenTechnique[] TechniqueCycle =
+        {
+            NenTechnique.Ten,
+            NenTechnique.Zetsu,
+            NenTechnique.Ren,
+            NenTechnique.Gyo,
+            NenTechnique.En,
+            NenTechnique.In,
+            NenTechnique.Shu,
+            NenTechnique.Ko,
+            NenTechnique.Ken,
+            NenTechnique.Ryu
+        };
+
         [SerializeField] private AuraPool auraPool;
         [SerializeField] private AffinityProfile affinityProfile;
         [SerializeField] private AuraSignatureProfile signatureProfile;
-        [Header("Perception Pulse")]
-        [SerializeField, Min(0f)] private float perceptionPulseRadius = 14f;
-        [SerializeField, Min(0.1f)] private float perceptionPulseInterval = 1.2f;
-        [SerializeField, Min(0f)] private float perceptionRevealDuration = 1.1f;
-        [SerializeField] private LayerMask perceptionTargetMask = ~0;
-        [SerializeField] private AuraModeRuntimeConfig[] modeConfigs =
+        [SerializeField] private NenTechnique currentTechnique = NenTechnique.Ten;
+        [SerializeField] private NenTechniqueRuntimeConfig[] techniqueConfigs =
         {
-            AuraModeRuntimeConfig.Create(AuraMode.Neutral, 1f, 0f, 1f, 1f, 1f),
-            AuraModeRuntimeConfig.Create(AuraMode.Concealment, 0.9f, 1.5f, 1f, 0.95f, 1.25f),
-            AuraModeRuntimeConfig.Create(AuraMode.Reinforcement, 0.6f, 4f, 0.75f, 0.95f, 1f),
-            AuraModeRuntimeConfig.Create(AuraMode.Expansion, 0.5f, 5f, 1f, 1.2f, 0.95f),
-            AuraModeRuntimeConfig.Create(AuraMode.Perception, 0.7f, 3f, 1f, 0.9f, 1.4f)
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Ten, AuraMode.Neutral, 1f, 0f, 1.15f, 1f, 1f, 1f, true, true, 1f, 0f, 0f, 0f,
+                "Basic aura shroud. Stable defense and retention."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Zetsu, AuraMode.Concealment, 1.2f, 0f, 0.55f, 0.6f, 1.04f, 0.2f, false, false, 0f, 0f, 0f, 0f,
+                "Suppress aura output. Hard to detect, but vulnerable."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Ren, AuraMode.Expansion, 0.35f, 5.5f, 0.95f, 1.4f, 1.03f, 1.3f, true, true, 1.35f, 0f, 0f, 0f,
+                "Amplify aura output. Higher power with heavy drain."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Gyo, AuraMode.Perception, 0.7f, 2f, 1f, 1.08f, 0.97f, 1.55f, true, true, 1.1f, 8f, 0.9f, 0.75f,
+                "Focus aura for precision sensing and striking."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.En, AuraMode.Perception, 0.5f, 4.8f, 0.95f, 1f, 0.9f, 1.9f, true, true, 1.2f, 14f, 1.2f, 1.1f,
+                "Expand aura field to detect nearby targets."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.In, AuraMode.Concealment, 0.8f, 2.2f, 0.9f, 1f, 1f, 0.45f, true, true, 0.72f, 0f, 0f, 0f,
+                "Conceal aura presence while keeping aura active."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Shu, AuraMode.Reinforcement, 0.75f, 2.8f, 1.12f, 1.15f, 1f, 1f, true, true, 1.05f, 0f, 0f, 0f,
+                "Extend aura into objects to reinforce and empower them."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Ko, AuraMode.Expansion, 0.1f, 7.2f, 0.45f, 1.85f, 0.9f, 1.1f, true, true, 1.5f, 0f, 0f, 0f,
+                "Concentrate aura into one point for massive offense."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Ken, AuraMode.Reinforcement, 0.55f, 4f, 1.4f, 1f, 0.92f, 1f, true, true, 1.15f, 0f, 0f, 0f,
+                "Sustained defensive aura state for long engagements."),
+            NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Ryu, AuraMode.Reinforcement, 0.65f, 3.2f, 1.18f, 1.18f, 1.02f, 1.2f, true, true, 1.2f, 0f, 0f, 0f,
+                "Dynamic aura distribution for adaptive combat.")
         };
 
-        private readonly AuraStateMachine stateMachine = new();
-        private AuraModeRuntimeConfig activeConfig;
-        private float nextPerceptionPulseAt;
+        private NenTechniqueRuntimeConfig activeConfig;
+        private float nextDetectionPulseAt;
 
         public event Action<AuraMode> ModeChanged;
+        public event Action<NenTechnique> TechniqueChanged;
 
-        public AuraMode CurrentMode => stateMachine.CurrentMode;
+        public AuraMode CurrentMode => activeConfig.Mode;
+        public NenTechnique CurrentTechnique => currentTechnique;
         public AuraPool AuraPool => auraPool;
         public AffinityProfile AffinityProfile => affinityProfile;
         public AuraSignatureProfile SignatureProfile => signatureProfile;
@@ -42,6 +92,10 @@ namespace GreedIsland.Aura
         public float DetectionMultiplier => activeConfig.DetectionMultiplier;
         public float RegenMultiplier => activeConfig.RegenMultiplier;
         public float UpkeepPerSecond => activeConfig.UpkeepPerSecond;
+        public bool CanUseAbilities => activeConfig.CanUseAbilities;
+        public bool IsAuraVisible => activeConfig.AuraVisible;
+        public float AuraVisualIntensity => activeConfig.VisualIntensity;
+        public string TechniqueDescription => activeConfig.Description;
 
         private void Awake()
         {
@@ -50,8 +104,8 @@ namespace GreedIsland.Aura
                 auraPool = GetComponent<AuraPool>();
             }
 
-            activeConfig = ResolveConfig(stateMachine.CurrentMode);
-            ApplyConfigToPool(activeConfig);
+            activeConfig = ResolveTechniqueConfig(currentTechnique);
+            ApplyConfig();
         }
 
         private void Update()
@@ -66,25 +120,51 @@ namespace GreedIsland.Aura
             {
                 if (!auraPool.Spend(upkeep))
                 {
-                    SetMode(AuraMode.Neutral);
+                    SetTechnique(NenTechnique.Ten);
                     return;
                 }
             }
 
-            TickPerceptionPulse();
+            TickDetectionPulse();
         }
 
         public bool SetMode(AuraMode mode)
         {
-            if (!stateMachine.TrySetMode(mode))
+            return SetTechnique(MapModeToTechnique(mode));
+        }
+
+        public bool SetTechnique(NenTechnique technique)
+        {
+            if (currentTechnique == technique)
             {
                 return false;
             }
 
-            activeConfig = ResolveConfig(mode);
-            ApplyConfigToPool(activeConfig);
-            ModeChanged?.Invoke(mode);
+            currentTechnique = technique;
+            activeConfig = ResolveTechniqueConfig(currentTechnique);
+            ApplyConfig();
+            TechniqueChanged?.Invoke(currentTechnique);
+            ModeChanged?.Invoke(CurrentMode);
             return true;
+        }
+
+        public NenTechnique CycleTechnique()
+        {
+            var currentIndex = 0;
+            for (var i = 0; i < TechniqueCycle.Length; i++)
+            {
+                if (TechniqueCycle[i] != currentTechnique)
+                {
+                    continue;
+                }
+
+                currentIndex = i;
+                break;
+            }
+
+            var nextIndex = (currentIndex + 1) % TechniqueCycle.Length;
+            SetTechnique(TechniqueCycle[nextIndex]);
+            return currentTechnique;
         }
 
         public bool HasEnough(float amount)
@@ -127,40 +207,47 @@ namespace GreedIsland.Aura
             return affinityProfile.GetEfficiency(affinity).powerMultiplier * activeConfig.OutgoingPowerMultiplier;
         }
 
-        private AuraModeRuntimeConfig ResolveConfig(AuraMode mode)
+        private NenTechniqueRuntimeConfig ResolveTechniqueConfig(NenTechnique technique)
         {
-            foreach (var modeConfig in modeConfigs)
+            for (var i = 0; i < techniqueConfigs.Length; i++)
             {
-                if (modeConfig.Mode == mode)
+                if (techniqueConfigs[i].Technique == technique)
                 {
-                    return modeConfig;
+                    return techniqueConfigs[i];
                 }
             }
 
-            return AuraModeRuntimeConfig.Create(AuraMode.Neutral, 1f, 0f, 1f, 1f, 1f);
+            return NenTechniqueRuntimeConfig.Create(
+                NenTechnique.Ten, AuraMode.Neutral, 1f, 0f, 1.15f, 1f, 1f, 1f, true, true, 1f, 0f, 0f, 0f,
+                "Basic aura shroud. Stable defense and retention.");
         }
 
-        private void TickPerceptionPulse()
+        private void ApplyConfig()
         {
-            if (CurrentMode != AuraMode.Perception)
+            if (auraPool == null)
             {
                 return;
             }
 
-            if (Time.time < nextPerceptionPulseAt)
+            auraPool.SetRegenMultiplier(activeConfig.RegenMultiplier);
+        }
+
+        private void TickDetectionPulse()
+        {
+            if (activeConfig.PulseRadius <= 0f || activeConfig.PulseInterval <= 0f)
             {
                 return;
             }
 
-            nextPerceptionPulseAt = Time.time + perceptionPulseInterval;
-
-            var mask = perceptionTargetMask;
-            if (mask == ~0)
+            if (Time.time < nextDetectionPulseAt)
             {
-                mask = LayerMask.GetMask("Enemy", "Target", "Default");
+                return;
             }
 
-            var colliders = Physics.OverlapSphere(transform.position, perceptionPulseRadius, mask, QueryTriggerInteraction.Collide);
+            nextDetectionPulseAt = Time.time + activeConfig.PulseInterval;
+
+            var mask = LayerMask.GetMask("Enemy", "Target", "Default");
+            var colliders = Physics.OverlapSphere(transform.position, activeConfig.PulseRadius, mask, QueryTriggerInteraction.Collide);
             for (var i = 0; i < colliders.Length; i++)
             {
                 var targetable = colliders[i].GetComponentInParent<ITargetable>();
@@ -175,25 +262,28 @@ namespace GreedIsland.Aura
                     reveal = targetable.TargetTransform.gameObject.AddComponent<SenseRevealTarget>();
                 }
 
-                reveal.Reveal(perceptionRevealDuration);
+                reveal.Reveal(activeConfig.PulseRevealDuration);
             }
 
             Debug.DrawRay(transform.position, Vector3.up * 2f, Color.white, 0.2f);
         }
 
-        private void ApplyConfigToPool(AuraModeRuntimeConfig modeConfig)
+        private static NenTechnique MapModeToTechnique(AuraMode mode)
         {
-            if (auraPool == null)
+            return mode switch
             {
-                return;
-            }
-
-            auraPool.SetRegenMultiplier(modeConfig.RegenMultiplier);
+                AuraMode.Concealment => NenTechnique.In,
+                AuraMode.Reinforcement => NenTechnique.Ken,
+                AuraMode.Expansion => NenTechnique.Ren,
+                AuraMode.Perception => NenTechnique.En,
+                _ => NenTechnique.Ten
+            };
         }
 
         [Serializable]
-        public struct AuraModeRuntimeConfig
+        public struct NenTechniqueRuntimeConfig
         {
+            [SerializeField] private NenTechnique technique;
             [SerializeField] private AuraMode mode;
             [SerializeField, Min(0f)] private float regenMultiplier;
             [SerializeField, Min(0f)] private float upkeepPerSecond;
@@ -201,7 +291,15 @@ namespace GreedIsland.Aura
             [SerializeField, Min(0.01f)] private float outgoingPowerMultiplier;
             [SerializeField, Min(0.01f)] private float movementMultiplier;
             [SerializeField, Min(0.01f)] private float detectionMultiplier;
+            [SerializeField] private bool canUseAbilities;
+            [SerializeField] private bool auraVisible;
+            [SerializeField, Min(0f)] private float visualIntensity;
+            [SerializeField, Min(0f)] private float pulseRadius;
+            [SerializeField, Min(0f)] private float pulseInterval;
+            [SerializeField, Min(0f)] private float pulseRevealDuration;
+            [SerializeField] private string description;
 
+            public NenTechnique Technique => technique;
             public AuraMode Mode => mode;
             public float RegenMultiplier => regenMultiplier;
             public float UpkeepPerSecond => upkeepPerSecond;
@@ -209,24 +307,48 @@ namespace GreedIsland.Aura
             public float OutgoingPowerMultiplier => outgoingPowerMultiplier;
             public float MovementMultiplier => movementMultiplier;
             public float DetectionMultiplier => detectionMultiplier;
+            public bool CanUseAbilities => canUseAbilities;
+            public bool AuraVisible => auraVisible;
+            public float VisualIntensity => visualIntensity;
+            public float PulseRadius => pulseRadius;
+            public float PulseInterval => pulseInterval;
+            public float PulseRevealDuration => pulseRevealDuration;
+            public string Description => description;
 
-            public static AuraModeRuntimeConfig Create(
+            public static NenTechniqueRuntimeConfig Create(
+                NenTechnique techniqueValue,
                 AuraMode modeValue,
                 float regen,
                 float upkeep,
                 float defense,
                 float power,
-                float movement)
+                float movement,
+                float detection,
+                bool allowAbilities,
+                bool showAura,
+                float visualStrength,
+                float detectRadius,
+                float detectInterval,
+                float detectRevealDuration,
+                string text)
             {
-                return new AuraModeRuntimeConfig
+                return new NenTechniqueRuntimeConfig
                 {
+                    technique = techniqueValue,
                     mode = modeValue,
                     regenMultiplier = regen,
                     upkeepPerSecond = upkeep,
                     defenseMultiplier = defense,
                     outgoingPowerMultiplier = power,
                     movementMultiplier = movement,
-                    detectionMultiplier = 1f
+                    detectionMultiplier = detection,
+                    canUseAbilities = allowAbilities,
+                    auraVisible = showAura,
+                    visualIntensity = visualStrength,
+                    pulseRadius = detectRadius,
+                    pulseInterval = detectInterval,
+                    pulseRevealDuration = detectRevealDuration,
+                    description = text
                 };
             }
         }

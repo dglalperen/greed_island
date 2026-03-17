@@ -103,6 +103,12 @@ namespace GreedIsland.Abilities
                 return false;
             }
 
+            if (abilityUser?.AuraController != null && !abilityUser.AuraController.CanUseAbilities)
+            {
+                AbilityFailed?.Invoke(slotId, definition, $"Abilities blocked in {abilityUser.AuraController.CurrentTechnique}.");
+                return false;
+            }
+
             if (definition.ActivationType == AbilityActivationType.Toggle && activeExecutions.ContainsKey(slotId))
             {
                 StopActiveAbility(slotId);

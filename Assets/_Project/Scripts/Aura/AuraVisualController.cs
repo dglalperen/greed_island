@@ -11,21 +11,33 @@ namespace GreedIsland.Aura
         [SerializeField] private AuraController auraController;
         [SerializeField] private AuraPool auraPool;
         [SerializeField] private Transform auraRoot;
-        [SerializeField, Min(1f)] private float shellScaleMultiplier = 1.06f;
-        [SerializeField, Min(0f)] private float pulseFrequency = 6f;
-        [SerializeField, Min(0f)] private float baseAlpha = 0.06f;
-        [SerializeField, Min(0f)] private float maxAlpha = 0.33f;
+
+        [Header("Shell")]
+        [SerializeField, Min(1f)] private float shellScaleMultiplier = 1.03f;
+        [SerializeField, Min(0f)] private float shellPulseFrequency = 6f;
+        [SerializeField, Min(0f)] private float shellBaseAlpha = 0.04f;
+        [SerializeField, Min(0f)] private float shellMaxAlpha = 0.26f;
+
+        [Header("Smoke Particles")]
+        [SerializeField, Min(0f)] private float particleBaseRate = 10f;
+        [SerializeField, Min(0f)] private float particleMaxRate = 56f;
+        [SerializeField, Min(0f)] private float particleBaseSpeed = 0.02f;
+        [SerializeField, Min(0f)] private float particleMaxSpeed = 0.22f;
+        [SerializeField, Min(0f)] private float particleBaseSize = 0.015f;
+        [SerializeField, Min(0f)] private float particleMaxSize = 0.05f;
 
         private readonly List<ShellEntry> shellEntries = new(16);
-        private Material sharedAuraMaterial;
+        private readonly List<ParticleSystem> auraParticles = new(16);
+        private Material sharedShellMaterial;
+        private Material sharedParticleMaterial;
 
         private void Awake()
         {
             auraController ??= GetComponent<AuraController>();
             auraPool ??= GetComponent<AuraPool>();
             CleanupLegacyAuraPrimitives();
-            BuildAuraShells();
-            RefreshColor();
+            BuildAuraVisuals();
+            RefreshVisualState();
         }
 
         private void OnEnable()
@@ -33,6 +45,7 @@ namespace GreedIsland.Aura
             if (auraController != null)
             {
                 auraController.ModeChanged += OnAuraModeChanged;
+                auraController.TechniqueChanged += OnTechniqueChanged;
             }
 
             if (auraPool != null)
@@ -46,6 +59,7 @@ namespace GreedIsland.Aura
             if (auraController != null)
             {
                 auraController.ModeChanged -= OnAuraModeChanged;
+                auraController.TechniqueChanged -= OnTechniqueChanged;
             }
 
             if (auraPool != null)
@@ -62,43 +76,30 @@ namespace GreedIsland.Aura
             }
 
             var auraRatio = auraPool.Max <= 0f ? 0f : Mathf.Clamp01(auraPool.Current / auraPool.Max);
-            var modeMultiplier = ResolveModeIntensity(auraController != null ? auraController.CurrentMode : AuraMode.Neutral);
-            var pulse = 1f + Mathf.Sin(Time.time * pulseFrequency) * 0.045f;
-            var shellScale = shellScaleMultiplier * pulse;
+            var visualIntensity = auraController != null ? auraController.AuraVisualIntensity : 1f;
+            var visible = auraController == null || auraController.IsAuraVisible;
+            var active = visible && auraRatio > 0.01f;
 
-            for (var i = 0; i < shellEntries.Count; i++)
-            {
-                var entry = shellEntries[i];
-                if (entry.Transform == null || entry.Renderer == null)
-                {
-                    continue;
-                }
-
-                entry.Transform.localScale = entry.BaseScale * shellScale;
-                entry.Renderer.enabled = auraRatio > 0.01f;
-            }
-
-            if (sharedAuraMaterial == null)
-            {
-                return;
-            }
-
-            var alpha = Mathf.Lerp(baseAlpha, maxAlpha, auraRatio) * modeMultiplier;
-            var white = new Color(1f, 1f, 1f, Mathf.Clamp01(alpha));
-            SetMaterialColor(sharedAuraMaterial, white);
+            AnimateShell(auraRatio, visualIntensity, active);
+            AnimateParticles(auraRatio, visualIntensity, active);
         }
 
         private void OnAuraModeChanged(AuraMode mode)
         {
-            RefreshColor();
+            RefreshVisualState();
+        }
+
+        private void OnTechniqueChanged(NenTechnique technique)
+        {
+            RefreshVisualState();
         }
 
         private void OnAuraValueChanged(float current, float max)
         {
-            RefreshColor();
+            RefreshVisualState();
         }
 
-        private void BuildAuraShells()
+        private void BuildAuraVisuals()
         {
             if (auraRoot == null)
             {
@@ -117,8 +118,9 @@ namespace GreedIsland.Aura
                 }
             }
 
-            EnsureMaterial();
+            EnsureMaterials();
             shellEntries.Clear();
+            auraParticles.Clear();
 
             var sourceRoot = transform.Find("VisualRig");
             if (sourceRoot == null)
@@ -130,12 +132,7 @@ namespace GreedIsland.Aura
             for (var i = 0; i < sourceFilters.Length; i++)
             {
                 var sourceFilter = sourceFilters[i];
-                if (sourceFilter == null || sourceFilter.sharedMesh == null)
-                {
-                    continue;
-                }
-
-                if (sourceFilter.name.Contains("AuraShell"))
+                if (sourceFilter == null || sourceFilter.sharedMesh == null || sourceFilter.name.Contains("AuraShell"))
                 {
                     continue;
                 }
@@ -146,25 +143,84 @@ namespace GreedIsland.Aura
                     continue;
                 }
 
-                var shellTransform = EnsureShellForSource(sourceFilter.transform, sourceFilter.sharedMesh);
-                if (shellTransform == null)
+                var meshRenderer = sourceRenderer as MeshRenderer;
+                if (meshRenderer == null)
                 {
                     continue;
                 }
 
-                shellEntries.Add(new ShellEntry(
-                    shellTransform,
-                    shellTransform.GetComponent<MeshRenderer>(),
-                    shellTransform.localScale));
+                var shellTransform = EnsureShellForSource(sourceFilter.transform, sourceFilter.sharedMesh);
+                if (shellTransform != null)
+                {
+                    shellEntries.Add(new ShellEntry(shellTransform, shellTransform.GetComponent<MeshRenderer>(), shellTransform.localScale));
+                }
+
+                var particle = EnsureParticleForSource(sourceFilter.transform, meshRenderer);
+                if (particle != null)
+                {
+                    auraParticles.Add(particle);
+                }
             }
         }
 
-        private void CleanupLegacyAuraPrimitives()
+        private void AnimateShell(float auraRatio, float intensity, bool active)
         {
-            var legacyRoot = transform.Find("AuraVisualRoot");
-            if (legacyRoot != null)
+            var pulse = 1f + Mathf.Sin(Time.time * shellPulseFrequency) * 0.04f;
+            var scale = shellScaleMultiplier * pulse;
+
+            for (var i = 0; i < shellEntries.Count; i++)
             {
-                Destroy(legacyRoot.gameObject);
+                var entry = shellEntries[i];
+                if (entry.Transform == null || entry.Renderer == null)
+                {
+                    continue;
+                }
+
+                entry.Transform.localScale = entry.BaseScale * scale;
+                entry.Renderer.enabled = active;
+            }
+
+            if (sharedShellMaterial == null)
+            {
+                return;
+            }
+
+            var alpha = Mathf.Lerp(shellBaseAlpha, shellMaxAlpha, auraRatio) * intensity;
+            SetMaterialColor(sharedShellMaterial, new Color(1f, 1f, 1f, Mathf.Clamp01(alpha)));
+        }
+
+        private void AnimateParticles(float auraRatio, float intensity, bool active)
+        {
+            var emissionRate = Mathf.Lerp(particleBaseRate, particleMaxRate, auraRatio) * intensity;
+            var speed = Mathf.Lerp(particleBaseSpeed, particleMaxSpeed, auraRatio) * intensity;
+            var size = Mathf.Lerp(particleBaseSize, particleMaxSize, auraRatio);
+
+            for (var i = 0; i < auraParticles.Count; i++)
+            {
+                var particle = auraParticles[i];
+                if (particle == null)
+                {
+                    continue;
+                }
+
+                var main = particle.main;
+                main.startSpeed = speed;
+                main.startSize = size;
+
+                var emission = particle.emission;
+                emission.rateOverTime = emissionRate;
+
+                if (active)
+                {
+                    if (!particle.isPlaying)
+                    {
+                        particle.Play();
+                    }
+                }
+                else if (particle.isPlaying)
+                {
+                    particle.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                }
             }
         }
 
@@ -187,7 +243,7 @@ namespace GreedIsland.Aura
             filter.sharedMesh = mesh;
 
             var renderer = existing.GetComponent<MeshRenderer>();
-            renderer.sharedMaterial = sharedAuraMaterial;
+            renderer.sharedMaterial = sharedShellMaterial;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
             renderer.receiveShadows = false;
             renderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
@@ -204,57 +260,152 @@ namespace GreedIsland.Aura
             return existing;
         }
 
-        private void EnsureMaterial()
+        private ParticleSystem EnsureParticleForSource(Transform source, MeshRenderer sourceRenderer)
         {
-            if (sharedAuraMaterial != null)
+            var particleName = $"{source.name}_AuraSmoke";
+            var existing = source.Find(particleName);
+            if (existing == null)
             {
-                return;
+                existing = new GameObject(particleName).transform;
+                existing.SetParent(source, false);
+                existing.localPosition = Vector3.zero;
+                existing.localRotation = Quaternion.identity;
+                existing.localScale = Vector3.one;
             }
 
-            var shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
-            if (shader == null)
+            var particle = existing.GetComponent<ParticleSystem>();
+            if (particle == null)
             {
-                shader = Shader.Find("Universal Render Pipeline/Unlit");
+                particle = existing.gameObject.AddComponent<ParticleSystem>();
             }
 
-            if (shader == null)
-            {
-                shader = Shader.Find("Unlit/Color");
-            }
-
-            if (shader == null)
-            {
-                return;
-            }
-
-            sharedAuraMaterial = new Material(shader);
-            sharedAuraMaterial.renderQueue = 3000;
-            SetMaterialColor(sharedAuraMaterial, new Color(1f, 1f, 1f, baseAlpha));
+            ConfigureParticleSystem(particle, sourceRenderer);
+            return particle;
         }
 
-        private void RefreshColor()
+        private void ConfigureParticleSystem(ParticleSystem particle, MeshRenderer sourceRenderer)
         {
-            if (sharedAuraMaterial == null || auraPool == null)
+            var main = particle.main;
+            main.playOnAwake = false;
+            main.loop = true;
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.45f, 1.1f);
+            main.startSpeed = particleBaseSpeed;
+            main.startSize = particleBaseSize;
+            main.maxParticles = 520;
+            main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+            main.gravityModifier = 0f;
+
+            var emission = particle.emission;
+            emission.enabled = true;
+            emission.rateOverTime = particleBaseRate;
+
+            var shape = particle.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.MeshRenderer;
+            shape.meshRenderer = sourceRenderer;
+            shape.meshShapeType = ParticleSystemMeshShapeType.Vertex;
+            shape.normalOffset = 0f;
+            shape.randomDirectionAmount = 0.18f;
+            shape.sphericalDirectionAmount = 0.12f;
+
+            var noise = particle.noise;
+            noise.enabled = true;
+            noise.strength = 0.16f;
+            noise.frequency = 0.55f;
+            noise.scrollSpeed = 0.22f;
+            noise.octaveCount = 1;
+
+            var colorOverLifetime = particle.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(
+                new Gradient
+                {
+                    alphaKeys = new[]
+                    {
+                        new GradientAlphaKey(0f, 0f),
+                        new GradientAlphaKey(0.25f, 0.2f),
+                        new GradientAlphaKey(0.15f, 0.7f),
+                        new GradientAlphaKey(0f, 1f)
+                    },
+                    colorKeys = new[]
+                    {
+                        new GradientColorKey(Color.white, 0f),
+                        new GradientColorKey(Color.white, 1f)
+                    }
+                });
+
+            var renderer = particle.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.material = sharedParticleMaterial;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.allowRoll = true;
+            renderer.sortingFudge = 7f;
+        }
+
+        private void EnsureMaterials()
+        {
+            if (sharedShellMaterial == null)
+            {
+                var shellShader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+                if (shellShader == null)
+                {
+                    shellShader = Shader.Find("Universal Render Pipeline/Unlit");
+                }
+
+                if (shellShader != null)
+                {
+                    sharedShellMaterial = new Material(shellShader) { renderQueue = 3000 };
+                    SetMaterialColor(sharedShellMaterial, new Color(1f, 1f, 1f, shellBaseAlpha));
+                }
+            }
+
+            if (sharedParticleMaterial != null)
+            {
+                return;
+            }
+
+            var particleShader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (particleShader == null)
+            {
+                particleShader = Shader.Find("Particles/Standard Unlit");
+            }
+
+            if (particleShader == null)
+            {
+                particleShader = Shader.Find("Unlit/Color");
+            }
+
+            if (particleShader == null)
+            {
+                return;
+            }
+
+            sharedParticleMaterial = new Material(particleShader) { renderQueue = 3000 };
+            SetMaterialColor(sharedParticleMaterial, new Color(1f, 1f, 1f, 0.35f));
+        }
+
+        private void RefreshVisualState()
+        {
+            if (sharedShellMaterial == null || auraPool == null)
             {
                 return;
             }
 
             var auraRatio = auraPool.Max <= 0f ? 0f : Mathf.Clamp01(auraPool.Current / auraPool.Max);
-            var modeIntensity = ResolveModeIntensity(auraController != null ? auraController.CurrentMode : AuraMode.Neutral);
-            var alpha = Mathf.Lerp(baseAlpha, maxAlpha, auraRatio) * modeIntensity;
-            SetMaterialColor(sharedAuraMaterial, new Color(1f, 1f, 1f, Mathf.Clamp01(alpha)));
+            var intensity = auraController != null ? auraController.AuraVisualIntensity : 1f;
+            var alpha = Mathf.Lerp(shellBaseAlpha, shellMaxAlpha, auraRatio) * intensity;
+            SetMaterialColor(sharedShellMaterial, new Color(1f, 1f, 1f, Mathf.Clamp01(alpha)));
         }
 
-        private static float ResolveModeIntensity(AuraMode mode)
+        private void CleanupLegacyAuraPrimitives()
         {
-            return mode switch
+            var legacyRoot = transform.Find("AuraVisualRoot");
+            if (legacyRoot != null)
             {
-                AuraMode.Concealment => 0.75f,
-                AuraMode.Reinforcement => 1.2f,
-                AuraMode.Expansion => 1.12f,
-                AuraMode.Perception => 1.05f,
-                _ => 1f
-            };
+                Destroy(legacyRoot.gameObject);
+            }
         }
 
         private static void SetMaterialColor(Material material, Color color)
@@ -275,7 +426,7 @@ namespace GreedIsland.Aura
 
             if (material.HasProperty("_EmissionColor"))
             {
-                material.SetColor("_EmissionColor", color * 0.85f);
+                material.SetColor("_EmissionColor", color * 0.9f);
             }
         }
 
